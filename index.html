@@ -180,14 +180,12 @@
         const GRID_SIZE = 20;
         const CANVAS_WIDTH = canvas.width;
         const CANVAS_HEIGHT = canvas.height;
-        const SNAKE_COLOR = 'rgba(255, 255, 255, 1)';
-        const SNAKE_SHADOW = '#39ff14';
         const FOOD_SHADOW = '#ff1b1b'; // Shadow for the fruit emoji
         const FRUITS = ['🍎', '🍌', '🍇', '🍓', '🍉', '🍒', '🍑', '🍍', '🥝', '🥭'];
 
         let snake, food, score, hiScore, direction, dx, dy, isGameOver, gameSpeed;
         let gameStarted = false;
-        let changingDirection = false; // **FIX: Input lock variable**
+        let changingDirection = false;
 
         // --- 2. GAME STATE & INITIALIZATION ---
         function init() {
@@ -246,7 +244,7 @@
             }
 
             setTimeout(() => {
-                changingDirection = false; // **FIX: Reset lock at the start of each frame**
+                changingDirection = false;
                 clearCanvas();
                 moveSnake();
                 drawFood();
@@ -261,13 +259,31 @@
             ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         }
 
+        // **MODIFIED: Draws the snake with a dynamic gradient starting from Green**
         function drawSnake() {
-            ctx.shadowColor = SNAKE_SHADOW;
-            ctx.shadowBlur = 10;
+            // The base hue now starts at 105 (neon green) to match the UI.
+            const baseHue = (105 + score * 5) % 360;
+
+            // A matching green shadow for a cohesive glow.
+            ctx.shadowColor = '#39ff14';
+            ctx.shadowBlur = 15;
+
             snake.forEach((part, index) => {
-                ctx.fillStyle = index === 0 ? 'white' : SNAKE_COLOR;
+                // Calculate the hue for this specific segment.
+                const segmentHue = (baseHue + index * 10) % 360;
+                
+                // Use HSL for vibrant, controllable neon colors.
+                ctx.fillStyle = `hsl(${segmentHue}, 100%, 50%)`;
+
+                // Make the head slightly brighter to stand out.
+                if (index === 0) {
+                    ctx.fillStyle = `hsl(${segmentHue}, 100%, 70%)`;
+                }
+
                 ctx.fillRect(part.x, part.y, GRID_SIZE, GRID_SIZE);
             });
+            
+            // Reset shadow to not affect other elements.
             ctx.shadowBlur = 0;
         }
         
@@ -353,7 +369,7 @@
 
         // --- 5. EVENT LISTENERS ---
         function changeDirection(e) {
-            if (changingDirection) return; // **FIX: Check if a direction change is already queued**
+            if (changingDirection) return;
 
             const keyPressed = e.key;
             const goingUp = (dy === -GRID_SIZE);
@@ -363,16 +379,16 @@
 
             if ((keyPressed === 'ArrowLeft' || keyPressed.toLowerCase() === 'a') && !goingRight) {
                 dx = -GRID_SIZE; dy = 0;
-                changingDirection = true; // **FIX: Lock input for this frame**
+                changingDirection = true;
             } else if ((keyPressed === 'ArrowUp' || keyPressed.toLowerCase() === 'w') && !goingDown) {
                 dx = 0; dy = -GRID_SIZE;
-                changingDirection = true; // **FIX: Lock input for this frame**
+                changingDirection = true;
             } else if ((keyPressed === 'ArrowRight' || keyPressed.toLowerCase() === 'd') && !goingLeft) {
                 dx = GRID_SIZE; dy = 0;
-                changingDirection = true; // **FIX: Lock input for this frame**
+                changingDirection = true;
             } else if ((keyPressed === 'ArrowDown' || keyPressed.toLowerCase() === 's') && !goingUp) {
                 dx = 0; dy = GRID_SIZE;
-                changingDirection = true; // **FIX: Lock input for this frame**
+                changingDirection = true;
             }
         }
         
@@ -420,7 +436,7 @@
         }, { passive: true });
         
         function handleSwipe(touchEndX, touchEndY) {
-            if (changingDirection) return; // **FIX: Check if a direction change is already queued**
+            if (changingDirection) return;
 
             const diffX = touchEndX - touchStartX;
             const diffY = touchEndY - touchStartY;
@@ -432,18 +448,18 @@
             if (Math.abs(diffX) > Math.abs(diffY)) {
                 if (diffX > 0 && !goingLeft) {
                     dx = GRID_SIZE; dy = 0;
-                    changingDirection = true; // **FIX: Lock input for this frame**
+                    changingDirection = true;
                 } else if (diffX < 0 && !goingRight) {
                     dx = -GRID_SIZE; dy = 0;
-                    changingDirection = true; // **FIX: Lock input for this frame**
+                    changingDirection = true;
                 }
             } else {
                 if (diffY > 0 && !goingUp) {
                     dx = 0; dy = GRID_SIZE;
-                    changingDirection = true; // **FIX: Lock input for this frame**
+                    changingDirection = true;
                 } else if (diffY < 0 && !goingDown) {
                     dx = 0; dy = -GRID_SIZE;
-                    changingDirection = true; // **FIX: Lock input for this frame**
+                    changingDirection = true;
                 }
             }
         }
