@@ -155,7 +155,6 @@
         </div>
     </div>
 
-    <!-- Audio Elements -->
     <audio id="bg-music" src="Sound/Snake Music.mp3" loop preload="auto"></audio>
     <audio id="food-sound" src="Sound/food.wav" preload="auto"></audio>
     <audio id="gameover-sound" src="Sound/game over.mp3" preload="auto"></audio>
@@ -188,6 +187,7 @@
 
         let snake, food, score, hiScore, direction, dx, dy, isGameOver, gameSpeed;
         let gameStarted = false;
+        let changingDirection = false; // **FIX: Input lock variable**
 
         // --- 2. GAME STATE & INITIALIZATION ---
         function init() {
@@ -203,26 +203,24 @@
             dy = 0;
             isGameOver = false;
             gameSpeed = 120; // ms per frame
+            changingDirection = false;
 
             scoreEl.textContent = score;
             hiScoreEl.textContent = hiScore;
 
             generateFood();
 
-            // Stop any ongoing fade out
             if (bgMusicFadeInterval) {
                 clearInterval(bgMusicFadeInterval);
                 bgMusicFadeInterval = null;
             }
 
-            // Restore bg music volume and play
             bgMusic.volume = defaultBgMusicVolume;
             if (bgMusic.paused) {
                 bgMusic.currentTime = 0;
-                bgMusic.play().catch(() => {}); // Ignore autoplay errors
+                bgMusic.play().catch(() => {});
             }
 
-            // Stop game over sound if playing
             gameOverSound.pause();
             gameOverSound.currentTime = 0;
 
@@ -238,11 +236,6 @@
             startButton.style.display = 'none';
             restartButton.classList.add('show');
         }
-        function hideAllButtons() {
-            startButton.style.display = 'none';
-            restartButton.classList.remove('show');
-        }
-
 
         // --- 3. GAME LOOP ---
         function main() {
@@ -253,6 +246,7 @@
             }
 
             setTimeout(() => {
+                changingDirection = false; // **FIX: Reset lock at the start of each frame**
                 clearCanvas();
                 moveSnake();
                 drawFood();
@@ -271,29 +265,19 @@
             ctx.shadowColor = SNAKE_SHADOW;
             ctx.shadowBlur = 10;
             snake.forEach((part, index) => {
-                // Head is brighter
                 ctx.fillStyle = index === 0 ? 'white' : SNAKE_COLOR;
                 ctx.fillRect(part.x, part.y, GRID_SIZE, GRID_SIZE);
             });
-            // Reset shadow for other elements
             ctx.shadowBlur = 0;
         }
         
-        // MODIFIED: Draws a random fruit emoji
         function drawFood() {
-            // The neon shadow behind the emoji
             ctx.shadowColor = FOOD_SHADOW;
             ctx.shadowBlur = 15;
-            
-            // Set font properties for drawing the emoji
-            // We center the emoji in its grid square
             ctx.font = `${GRID_SIZE}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            
             ctx.fillText(food.emoji, food.x + GRID_SIZE / 2, food.y + GRID_SIZE / 2);
-            
-            // Reset context properties to avoid affecting other elements
             ctx.shadowBlur = 0;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
@@ -305,7 +289,6 @@
 
             if (checkGameOver(head)) {
                 isGameOver = true;
-                // Fade out background music and pause, then play game over sound
                 fadeOutAndPauseBgMusic();
                 gameOverSound.currentTime = 0;
                 gameOverSound.play().catch(() => {});
@@ -321,30 +304,21 @@
                     hiScoreEl.textContent = hiScore;
                     localStorage.setItem('neonSnakeHiScore', hiScore);
                 }
-                // Fade bg music to 50% when food sound plays
-                const originalBgVolume = bgMusic.volume;
-                bgMusic.volume = 0.5;
+                
                 foodSound.currentTime = 0;
                 foodSound.play().catch(() => {});
-                // Restore bg music volume after food sound ends
-                foodSound.onended = () => {
-                    bgMusic.volume = originalBgVolume;
-                };
                 generateFood();
             } else {
                 snake.pop();
             }
         }
 
-        // MODIFIED: Generates food with a random emoji
         function generateFood() {
             let foodX, foodY;
             const randomEmoji = FRUITS[Math.floor(Math.random() * FRUITS.length)];
-
             while (true) {
                 foodX = Math.floor(Math.random() * (CANVAS_WIDTH / GRID_SIZE)) * GRID_SIZE;
                 foodY = Math.floor(Math.random() * (CANVAS_HEIGHT / GRID_SIZE)) * GRID_SIZE;
-                // Ensure food doesn't spawn on the snake
                 let isonSnake = snake.some(part => part.x === foodX && part.y === foodY);
                 if (!isonSnake) break;
             }
@@ -352,11 +326,9 @@
         }
         
         function checkGameOver(head) {
-            // Wall collision
             if (head.x < 0 || head.x >= CANVAS_WIDTH || head.y < 0 || head.y >= CANVAS_HEIGHT) {
                 return true;
             }
-            // Self collision
             for (let i = 1; i < snake.length; i++) {
                 if (head.x === snake[i].x && head.y === snake[i].y) {
                     return true;
@@ -381,6 +353,8 @@
 
         // --- 5. EVENT LISTENERS ---
         function changeDirection(e) {
+            if (changingDirection) return; // **FIX: Check if a direction change is already queued**
+
             const keyPressed = e.key;
             const goingUp = (dy === -GRID_SIZE);
             const goingDown = (dy === GRID_SIZE);
@@ -388,22 +362,23 @@
             const goingLeft = (dx === -GRID_SIZE);
 
             if ((keyPressed === 'ArrowLeft' || keyPressed.toLowerCase() === 'a') && !goingRight) {
-                direction = 'LEFT'; dx = -GRID_SIZE; dy = 0;
-            }
-            if ((keyPressed === 'ArrowUp' || keyPressed.toLowerCase() === 'w') && !goingDown) {
-                direction = 'UP'; dx = 0; dy = -GRID_SIZE;
-            }
-            if ((keyPressed === 'ArrowRight' || keyPressed.toLowerCase() === 'd') && !goingLeft) {
-                direction = 'RIGHT'; dx = GRID_SIZE; dy = 0;
-            }
-            if ((keyPressed === 'ArrowDown' || keyPressed.toLowerCase() === 's') && !goingUp) {
-                direction = 'DOWN'; dx = 0; dy = GRID_SIZE;
+                dx = -GRID_SIZE; dy = 0;
+                changingDirection = true; // **FIX: Lock input for this frame**
+            } else if ((keyPressed === 'ArrowUp' || keyPressed.toLowerCase() === 'w') && !goingDown) {
+                dx = 0; dy = -GRID_SIZE;
+                changingDirection = true; // **FIX: Lock input for this frame**
+            } else if ((keyPressed === 'ArrowRight' || keyPressed.toLowerCase() === 'd') && !goingLeft) {
+                dx = GRID_SIZE; dy = 0;
+                changingDirection = true; // **FIX: Lock input for this frame**
+            } else if ((keyPressed === 'ArrowDown' || keyPressed.toLowerCase() === 's') && !goingUp) {
+                dx = 0; dy = GRID_SIZE;
+                changingDirection = true; // **FIX: Lock input for this frame**
             }
         }
         
 
         function restartGame() {
-            if (!gameStarted) return;
+            if (!gameStarted || !isGameOver) return;
             init();
         }
 
@@ -414,15 +389,10 @@
             init();
         }
 
-        // Fade out background music smoothly and pause
         function fadeOutAndPauseBgMusic() {
-            // Clear any previous fade
-            if (bgMusicFadeInterval) {
-                clearInterval(bgMusicFadeInterval);
-                bgMusicFadeInterval = null;
-            }
+            if (bgMusicFadeInterval) clearInterval(bgMusicFadeInterval);
             const fadeStep = 0.05;
-            const fadeInterval = 30; // ms
+            const fadeInterval = 30;
             bgMusicFadeInterval = setInterval(() => {
                 if (bgMusic.volume > fadeStep) {
                     bgMusic.volume = Math.max(0, bgMusic.volume - fadeStep);
@@ -430,7 +400,6 @@
                     bgMusic.volume = 0;
                     bgMusic.pause();
                     clearInterval(bgMusicFadeInterval);
-                    bgMusicFadeInterval = null;
                 }
             }, fadeInterval);
         }
@@ -438,8 +407,6 @@
         // Swipe Controls for Mobile
         let touchStartX = 0;
         let touchStartY = 0;
-        let touchEndX = 0;
-        let touchEndY = 0;
 
         canvas.addEventListener('touchstart', (e) => {
             touchStartX = e.changedTouches[0].screenX;
@@ -447,12 +414,14 @@
         }, { passive: true });
 
         canvas.addEventListener('touchend', (e) => {
-            touchEndX = e.changedTouches[0].screenX;
-            touchEndY = e.changedTouches[0].screenY;
-            handleSwipe();
+            const touchEndX = e.changedTouches[0].screenX;
+            const touchEndY = e.changedTouches[0].screenY;
+            handleSwipe(touchEndX, touchEndY);
         }, { passive: true });
         
-        function handleSwipe() {
+        function handleSwipe(touchEndX, touchEndY) {
+            if (changingDirection) return; // **FIX: Check if a direction change is already queued**
+
             const diffX = touchEndX - touchStartX;
             const diffY = touchEndY - touchStartY;
             const goingUp = (dy === -GRID_SIZE);
@@ -460,38 +429,43 @@
             const goingRight = (dx === GRID_SIZE);
             const goingLeft = (dx === -GRID_SIZE);
 
-            if (Math.abs(diffX) > Math.abs(diffY)) { // Horizontal swipe
+            if (Math.abs(diffX) > Math.abs(diffY)) {
                 if (diffX > 0 && !goingLeft) {
-                    direction = 'RIGHT'; dx = GRID_SIZE; dy = 0;
+                    dx = GRID_SIZE; dy = 0;
+                    changingDirection = true; // **FIX: Lock input for this frame**
                 } else if (diffX < 0 && !goingRight) {
-                    direction = 'LEFT'; dx = -GRID_SIZE; dy = 0;
+                    dx = -GRID_SIZE; dy = 0;
+                    changingDirection = true; // **FIX: Lock input for this frame**
                 }
-            } else { // Vertical swipe
+            } else {
                 if (diffY > 0 && !goingUp) {
-                    direction = 'DOWN'; dx = 0; dy = GRID_SIZE;
+                    dx = 0; dy = GRID_SIZE;
+                    changingDirection = true; // **FIX: Lock input for this frame**
                 } else if (diffY < 0 && !goingDown) {
-                    direction = 'UP'; dx = 0; dy = -GRID_SIZE;
+                    dx = 0; dy = -GRID_SIZE;
+                    changingDirection = true; // **FIX: Lock input for this frame**
                 }
             }
         }
         
         document.addEventListener('keydown', changeDirection);
 
-        // On first user interaction, resume audio context for autoplay policy
-        function resumeAudio() {
-            bgMusic.play().catch(() => {});
-            document.removeEventListener('keydown', resumeAudio);
-            canvas.removeEventListener('touchstart', resumeAudio);
+        function resumeAudioOnInteraction() {
+            if (bgMusic.paused) {
+                bgMusic.play().catch(() => {});
+            }
+            document.removeEventListener('keydown', resumeAudioOnInteraction);
+            document.removeEventListener('click', resumeAudioOnInteraction);
+            canvas.removeEventListener('touchstart', resumeAudioOnInteraction);
         }
-        document.addEventListener('keydown', resumeAudio);
-        canvas.addEventListener('touchstart', resumeAudio);
+        document.addEventListener('keydown', resumeAudioOnInteraction);
+        document.addEventListener('click', resumeAudioOnInteraction);
+        canvas.addEventListener('touchstart', resumeAudioOnInteraction);
 
         restartButton.addEventListener('click', restartGame);
         startButton.addEventListener('click', startGame);
 
-        // On load, show start button, hide restart
         showStartButton();
-        // Do not start game until Start is clicked
     });
     </script>
 
