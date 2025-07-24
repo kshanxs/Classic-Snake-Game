@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. CORE STYLING & NEON THEME --- */
+        :root {
+            --neon-green: #39ff14;
+            --neon-red: #ff1b1b;
+            --dark-bg: #0d0d0d;
+            --main-font: 'Press Start 2P', cursive;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--neon-green);
+            font-family: var(--main-font);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* --- 2. GAME CONTAINER (The "Phone" Frame) --- */
+        .game-container {
+            border: 3px solid var(--neon-green);
+            border-radius: 15px;
+            box-shadow: 0 0 25px var(--neon-green), 0 0 10px white inset;
+            padding: 20px;
+            background-color: black;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* --- 3. TOP BAR (Info Display) --- */
+        .top-bar {
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--neon-green);
+        }
+        
+        .top-bar h1 {
+            font-size: 1.2rem;
+            text-shadow: 0 0 8px var(--neon-green);
+            margin-bottom: 15px;
+        }
+
+        .scores {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+        }
+        
+        .scores span {
+             text-shadow: 0 0 5px var(--neon-green);
+        }
+
+        /* --- 4. GAME AREA --- */
+        #game-canvas {
+            background-color: #000;
+            border: 1px solid #222;
+        }
+
+        /* --- 5. BOTTOM BAR (Controls) --- */
+        .bottom-bar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            padding-top: 10px;
+            border-top: 2px solid var(--neon-green);
+        }
+
+
+        #restart-button {
+            font-family: var(--main-font);
+            font-size: 1rem;
+            background: transparent;
+            border: 2px solid var(--neon-red);
+            color: var(--neon-red);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-shadow: 0 0 8px var(--neon-red);
+            transition: background-color 0.2s, box-shadow 0.2s;
+            display: none; /* Hide by default, shown after game starts */
+        }
+
+        #restart-button.show {
+            display: inline-block;
+        }
+
+        #restart-button:hover {
+            background-color: rgba(255, 27, 27, 0.1);
+            box-shadow: 0 0 15px var(--neon-red);
+        }
+
+        #start-button {
+            font-family: var(--main-font);
+            font-size: 1rem;
+            background: transparent;
+            border: 2px solid var(--neon-green);
+            color: var(--neon-green);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-shadow: 0 0 8px var(--neon-green);
+            transition: background-color 0.2s, box-shadow 0.2s;
+            display: inline-block;
+        }
+
+        #start-button:hover {
+            background-color: rgba(57, 255, 20, 0.1);
+            box-shadow: 0 0 15px var(--neon-green);
+        }
+
+        .instructions {
+            font-size: 0.7rem;
+            text-align: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div class="top-bar">
+            <h1>Snake</h1>
+            <div class="scores">
+                <span>Score: <span id="current-score">0</span></span>
+                <span>Hi-Score: <span id="hi-score">0</span></span>
+            </div>
+        </div>
+
+        <canvas id="game-canvas" width="400" height="400"></canvas>
+
+        <div class="bottom-bar">
+            <button id="start-button">Start</button>
+            <button id="restart-button">Restart</button>
+            <p class="instructions">Use arrow keys or swipe to play</p>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="bg-music" src="Sound/Snake Music.mp3" loop preload="auto"></audio>
+    <audio id="food-sound" src="Sound/food.wav" preload="auto"></audio>
+    <audio id="gameover-sound" src="Sound/game over.mp3" preload="auto"></audio>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 1. SETUP ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('current-score');
+        const hiScoreEl = document.getElementById('hi-score');
+        const restartButton = document.getElementById('restart-button');
+        const startButton = document.getElementById('start-button');
+
+        // Audio elements
+        const bgMusic = document.getElementById('bg-music');
+        const foodSound = document.getElementById('food-sound');
+        const gameOverSound = document.getElementById('gameover-sound');
+        let bgMusicFadeInterval = null;
+        let defaultBgMusicVolume = 0.5;
+
+        const GRID_SIZE = 20;
+        const CANVAS_WIDTH = canvas.width;
+        const CANVAS_HEIGHT = canvas.height;
+        const SNAKE_COLOR = 'rgba(255, 255, 255, 1)';
+        const SNAKE_SHADOW = '#39ff14';
+        const FOOD_SHADOW = '#ff1b1b'; // Shadow for the fruit emoji
+        const FRUITS = ['🍎', '🍌', '🍇', '🍓', '🍉', '🍒', '🍑', '🍍', '🥝', '🥭'];
+
+        let snake, food, score, hiScore, direction, dx, dy, isGameOver, gameSpeed;
+        let gameStarted = false;
+
+        // --- 2. GAME STATE & INITIALIZATION ---
+        function init() {
+            snake = [
+                { x: 8 * GRID_SIZE, y: 10 * GRID_SIZE },
+                { x: 7 * GRID_SIZE, y: 10 * GRID_SIZE },
+                { x: 6 * GRID_SIZE, y: 10 * GRID_SIZE }
+            ];
+            score = 0;
+            hiScore = localStorage.getItem('neonSnakeHiScore') || 0;
+            direction = 'RIGHT';
+            dx = GRID_SIZE;
+            dy = 0;
+            isGameOver = false;
+            gameSpeed = 120; // ms per frame
+
+            scoreEl.textContent = score;
+            hiScoreEl.textContent = hiScore;
+
+            generateFood();
+
+            // Stop any ongoing fade out
+            if (bgMusicFadeInterval) {
+                clearInterval(bgMusicFadeInterval);
+                bgMusicFadeInterval = null;
+            }
+
+            // Restore bg music volume and play
+            bgMusic.volume = defaultBgMusicVolume;
+            if (bgMusic.paused) {
+                bgMusic.currentTime = 0;
+                bgMusic.play().catch(() => {}); // Ignore autoplay errors
+            }
+
+            // Stop game over sound if playing
+            gameOverSound.pause();
+            gameOverSound.currentTime = 0;
+
+            main();
+        }
+
+        // Show/hide buttons
+        function showStartButton() {
+            startButton.style.display = 'inline-block';
+            restartButton.classList.remove('show');
+        }
+        function showRestartButton() {
+            startButton.style.display = 'none';
+            restartButton.classList.add('show');
+        }
+        function hideAllButtons() {
+            startButton.style.display = 'none';
+            restartButton.classList.remove('show');
+        }
+
+
+        // --- 3. GAME LOOP ---
+        function main() {
+            if (isGameOver) {
+                drawGameOver();
+                showRestartButton();
+                return;
+            }
+
+            setTimeout(() => {
+                clearCanvas();
+                moveSnake();
+                drawFood();
+                drawSnake();
+                main();
+            }, gameSpeed);
+        }
+        
+        // --- 4. CORE FUNCTIONS ---
+        function clearCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        }
+
+        function drawSnake() {
+            ctx.shadowColor = SNAKE_SHADOW;
+            ctx.shadowBlur = 10;
+            snake.forEach((part, index) => {
+                // Head is brighter
+                ctx.fillStyle = index === 0 ? 'white' : SNAKE_COLOR;
+                ctx.fillRect(part.x, part.y, GRID_SIZE, GRID_SIZE);
+            });
+            // Reset shadow for other elements
+            ctx.shadowBlur = 0;
+        }
+        
+        // MODIFIED: Draws a random fruit emoji
+        function drawFood() {
+            // The neon shadow behind the emoji
+            ctx.shadowColor = FOOD_SHADOW;
+            ctx.shadowBlur = 15;
+            
+            // Set font properties for drawing the emoji
+            // We center the emoji in its grid square
+            ctx.font = `${GRID_SIZE}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            ctx.fillText(food.emoji, food.x + GRID_SIZE / 2, food.y + GRID_SIZE / 2);
+            
+            // Reset context properties to avoid affecting other elements
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+        }
+
+        function moveSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            snake.unshift(head);
+
+            if (checkGameOver(head)) {
+                isGameOver = true;
+                // Fade out background music and pause, then play game over sound
+                fadeOutAndPauseBgMusic();
+                gameOverSound.currentTime = 0;
+                gameOverSound.play().catch(() => {});
+                return;
+            }
+
+            const hasEatenFood = (head.x === food.x && head.y === food.y);
+            if (hasEatenFood) {
+                score += 1;
+                scoreEl.textContent = score;
+                if (score > hiScore) {
+                    hiScore = score;
+                    hiScoreEl.textContent = hiScore;
+                    localStorage.setItem('neonSnakeHiScore', hiScore);
+                }
+                // Fade bg music to 50% when food sound plays
+                const originalBgVolume = bgMusic.volume;
+                bgMusic.volume = 0.5;
+                foodSound.currentTime = 0;
+                foodSound.play().catch(() => {});
+                // Restore bg music volume after food sound ends
+                foodSound.onended = () => {
+                    bgMusic.volume = originalBgVolume;
+                };
+                generateFood();
+            } else {
+                snake.pop();
+            }
+        }
+
+        // MODIFIED: Generates food with a random emoji
+        function generateFood() {
+            let foodX, foodY;
+            const randomEmoji = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+
+            while (true) {
+                foodX = Math.floor(Math.random() * (CANVAS_WIDTH / GRID_SIZE)) * GRID_SIZE;
+                foodY = Math.floor(Math.random() * (CANVAS_HEIGHT / GRID_SIZE)) * GRID_SIZE;
+                // Ensure food doesn't spawn on the snake
+                let isonSnake = snake.some(part => part.x === foodX && part.y === foodY);
+                if (!isonSnake) break;
+            }
+            food = { x: foodX, y: foodY, emoji: randomEmoji };
+        }
+        
+        function checkGameOver(head) {
+            // Wall collision
+            if (head.x < 0 || head.x >= CANVAS_WIDTH || head.y < 0 || head.y >= CANVAS_HEIGHT) {
+                return true;
+            }
+            // Self collision
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            ctx.font = `40px ${getComputedStyle(document.body).fontFamily}`;
+            ctx.fillStyle = '#ff1b1b';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = '#ff1b1b';
+            ctx.shadowBlur = 15;
+            ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+            ctx.shadowBlur = 0;
+        }
+
+        // --- 5. EVENT LISTENERS ---
+        function changeDirection(e) {
+            const keyPressed = e.key;
+            const goingUp = (dy === -GRID_SIZE);
+            const goingDown = (dy === GRID_SIZE);
+            const goingRight = (dx === GRID_SIZE);
+            const goingLeft = (dx === -GRID_SIZE);
+
+            if ((keyPressed === 'ArrowLeft' || keyPressed.toLowerCase() === 'a') && !goingRight) {
+                direction = 'LEFT'; dx = -GRID_SIZE; dy = 0;
+            }
+            if ((keyPressed === 'ArrowUp' || keyPressed.toLowerCase() === 'w') && !goingDown) {
+                direction = 'UP'; dx = 0; dy = -GRID_SIZE;
+            }
+            if ((keyPressed === 'ArrowRight' || keyPressed.toLowerCase() === 'd') && !goingLeft) {
+                direction = 'RIGHT'; dx = GRID_SIZE; dy = 0;
+            }
+            if ((keyPressed === 'ArrowDown' || keyPressed.toLowerCase() === 's') && !goingUp) {
+                direction = 'DOWN'; dx = 0; dy = GRID_SIZE;
+            }
+        }
+        
+
+        function restartGame() {
+            if (!gameStarted) return;
+            init();
+        }
+
+        function startGame() {
+            if (gameStarted) return;
+            gameStarted = true;
+            showRestartButton();
+            init();
+        }
+
+        // Fade out background music smoothly and pause
+        function fadeOutAndPauseBgMusic() {
+            // Clear any previous fade
+            if (bgMusicFadeInterval) {
+                clearInterval(bgMusicFadeInterval);
+                bgMusicFadeInterval = null;
+            }
+            const fadeStep = 0.05;
+            const fadeInterval = 30; // ms
+            bgMusicFadeInterval = setInterval(() => {
+                if (bgMusic.volume > fadeStep) {
+                    bgMusic.volume = Math.max(0, bgMusic.volume - fadeStep);
+                } else {
+                    bgMusic.volume = 0;
+                    bgMusic.pause();
+                    clearInterval(bgMusicFadeInterval);
+                    bgMusicFadeInterval = null;
+                }
+            }, fadeInterval);
+        }
+
+        // Swipe Controls for Mobile
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+        
+        function handleSwipe() {
+            const diffX = touchEndX - touchStartX;
+            const diffY = touchEndY - touchStartY;
+            const goingUp = (dy === -GRID_SIZE);
+            const goingDown = (dy === GRID_SIZE);
+            const goingRight = (dx === GRID_SIZE);
+            const goingLeft = (dx === -GRID_SIZE);
+
+            if (Math.abs(diffX) > Math.abs(diffY)) { // Horizontal swipe
+                if (diffX > 0 && !goingLeft) {
+                    direction = 'RIGHT'; dx = GRID_SIZE; dy = 0;
+                } else if (diffX < 0 && !goingRight) {
+                    direction = 'LEFT'; dx = -GRID_SIZE; dy = 0;
+                }
+            } else { // Vertical swipe
+                if (diffY > 0 && !goingUp) {
+                    direction = 'DOWN'; dx = 0; dy = GRID_SIZE;
+                } else if (diffY < 0 && !goingDown) {
+                    direction = 'UP'; dx = 0; dy = -GRID_SIZE;
+                }
+            }
+        }
+        
+        document.addEventListener('keydown', changeDirection);
+
+        // On first user interaction, resume audio context for autoplay policy
+        function resumeAudio() {
+            bgMusic.play().catch(() => {});
+            document.removeEventListener('keydown', resumeAudio);
+            canvas.removeEventListener('touchstart', resumeAudio);
+        }
+        document.addEventListener('keydown', resumeAudio);
+        canvas.addEventListener('touchstart', resumeAudio);
+
+        restartButton.addEventListener('click', restartGame);
+        startButton.addEventListener('click', startGame);
+
+        // On load, show start button, hide restart
+        showStartButton();
+        // Do not start game until Start is clicked
+    });
+    </script>
+
+</body>
+</html>
